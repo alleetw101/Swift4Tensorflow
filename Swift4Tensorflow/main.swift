@@ -10,4 +10,6 @@ import Foundation
 print("Hello, World!")
 // generalTest()
 
-modelTrainingWalkthrough()
+var sample_model = ModelTrainingWalkthrough()
+sample_model.trainModel()
+print(sample_model.trainingDataset)
