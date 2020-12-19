@@ -15,6 +15,7 @@ import Foundation
 class ModelTrainingWalkthrough {
     // Data file path
     let trainDataFilename = "/Users/alan/Documents/Programming/Swift/Swift4Tensorflow/Practice/iris_training.csv"
+    let testDataFilename = "/Users/alan/Documents/Programming/Swift/Swift4Tensorflow/Practice/iris_test.csv"
     
     // CSV column and label information
     let featureNames = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
@@ -26,14 +27,21 @@ class ModelTrainingWalkthrough {
     
     // Model
     var model = IrisModel()
+    var batchSize: Int = 32
+    var epochCount: Int = 501
     
     // Training stats
     var trainAccuracyResults: [Float] = []
     var trainLossResults: [Float] = []
     
     
+    init (batchsize: Int = 32, epochCount: Int = 501) {
+        self.batchSize = batchsize
+        self.epochCount = epochCount
+    }
+    
     // Function to download file (Doesn't work with provided csv link)
-    func downloadData() {
+    private func downloadData() {
         func download(from sourceString: String, to destinationString: String) {
             let source = URL(string: sourceString)!
             let destination = URL(fileURLWithPath: destinationString)
@@ -42,42 +50,43 @@ class ModelTrainingWalkthrough {
             try! data.write(to: destination)
         }
     
-    //    download(from: "http://download.tensorflow.org/data/iris_training.csv", to: trainDataFilename)
+        // download(from: "http://download.tensorflow.org/data/iris_training.csv", to: trainDataFilename)
+        // download(from: "http://download.tensorflow.org/data/iris_test.csv", to: testDataFilename)
+    }
+    
+    // Initialize an IrisBatch dataset from a csv file.
+    private func loadIrisDatasetFromCSV(contentsOf: String, hasHeader: Bool, featureColumns: [Int], labelColumns: [Int]) -> [IrisBatch] {
+        let np = Python.import("numpy")
+        
+        let featuresNP = np.loadtxt(contentsOf, delimiter: ",", skiprows: hasHeader ? 1 : 0, usecols: featureColumns, dtype: Float.numpyScalarTypes.first!)
+        guard let featuresTensor = Tensor<Float>(numpy: featuresNP) else {
+            fatalError("np.loadtxt result can't be converted to Tensor")
+        }
+        
+        let labelsNP = np.loadtxt(contentsOf, delimiter: ",", skiprows: hasHeader ? 1 : 0, usecols: labelColumns, dtype: Int32.numpyScalarTypes.first!)
+        guard let labelsTensor = Tensor<Int32>(numpy: labelsNP) else {
+            fatalError("np.loadtxt result can't be converted to Tensor")
+        }
+        
+        return zip(featuresTensor.unstacked(), labelsTensor.unstacked()).map{IrisBatch(features: $0.0, labels: $0.1)}
     }
     
     // Creating dataset using Epochs API.
-    func preProcessData() -> [IrisBatch] {
-        // Initialize an IrisBatch dataset from a csv file.
-        func loadIrisDatasetFromCSV(contentsOf: String, hasHeader: Bool, featureColumns: [Int], labelColumns: [Int]) -> [IrisBatch] {
-            let np = Python.import("numpy")
-            
-            let featuresNP = np.loadtxt(contentsOf, delimiter: ",", skiprows: hasHeader ? 1 : 0, usecols: featureColumns, dtype: Float.numpyScalarTypes.first!)
-            guard let featuresTensor = Tensor<Float>(numpy: featuresNP) else {
-                fatalError("np.loadtxt result can't be converted to Tensor")
-            }
-            
-            let labelsNP = np.loadtxt(contentsOf, delimiter: ",", skiprows: hasHeader ? 1 : 0, usecols: labelColumns, dtype: Int32.numpyScalarTypes.first!)
-            guard let labelsTensor = Tensor<Int32>(numpy: labelsNP) else {
-                fatalError("np.loadtxt result can't be converted to Tensor")
-            }
-            
-            return zip(featuresTensor.unstacked(), labelsTensor.unstacked()).map{IrisBatch(features: $0.0, labels: $0.1)}
-        }
+    private func preProcessData() -> [IrisBatch] {
         return loadIrisDatasetFromCSV(contentsOf: trainDataFilename, hasHeader: true, featureColumns: [0, 1, 2, 3], labelColumns: [4])
     }
     
-    func trainModel(batchsize: Int = 32, epochCount: Int = 501) {
-        let trainingEpochs = TrainingEpochs(samples: trainingDataset, batchSize: batchsize)
-        let columnNames = featureNames + [labelName]
+    private func accuracy(predictions: Tensor<Int32>, truths: Tensor<Int32>) -> Float {
+        return Tensor<Float>(predictions .== truths).mean().scalarized()
+    }
+    
+    func trainModel() {
+        let trainingEpochs = TrainingEpochs(samples: trainingDataset, batchSize: batchSize)
         
         trainAccuracyResults = []
         trainLossResults = []
         
         let optimizer = SGD(for: model, learningRate: 0.01)
-        
-        func accuracy(predictions: Tensor<Int32>, truths: Tensor<Int32>) -> Float {
-            return Tensor<Float>(predictions .== truths).mean().scalarized()
-        }
         
         for (epochIndex, epoch) in trainingEpochs.prefix(epochCount).enumerated() {
             var epochLoss: Float = 0
@@ -104,6 +113,17 @@ class ModelTrainingWalkthrough {
             if epochIndex % 50 == 0 {
                 print("Epoch \(epochIndex): Loss: \(epochLoss), Accuracy: \(epochAccuracy)")
             }
+        }
+    }
+    
+    func testModel() {
+        let testDataset = loadIrisDatasetFromCSV(contentsOf: testDataFilename, hasHeader: true, featureColumns: [0, 1, 2, 3], labelColumns: [4]).inBatches(of: batchSize)
+        
+        for batchSamples in testDataset {
+            let batch = batchSamples.collated
+            let logits = model(batch.features)
+            let predictions = logits.argmax(squeezingAxis: 1)
+            print("Test batch accuracy: \(accuracy(predictions: predictions, truths: batch.labels))")
         }
     }
         

@@ -8,13 +8,19 @@
 import Foundation
 
 print("Hello, World!")
-// generalTest()
 
-//var PracticeScratch = ExampleClass()
-//print(PracticeScratch.exampleVariable)
-//PracticeScratch.exampleVariable = "String"
-//print(PracticeScratch.exampleVariable)
+ModelTrainingWalkthroughRun()
 
-var sample_model = ModelTrainingWalkthrough()
-sample_model.trainModel()
-sample_model.visualizeTraining()
+func scratch() {
+    //var PracticeScratch = ExampleClass()
+    //print(PracticeScratch.exampleVariable)
+    //PracticeScratch.exampleVariable = "String"
+    //print(PracticeScratch.exampleVariable)
+}
+
+func ModelTrainingWalkthroughRun() {
+    let modelTrainingWalkthrough = ModelTrainingWalkthrough(batchsize: 32, epochCount: 501)
+    modelTrainingWalkthrough.trainModel()
+    modelTrainingWalkthrough.testModel()
+    // modelTrainingWalkthrough.visualizeTraining()
+}
