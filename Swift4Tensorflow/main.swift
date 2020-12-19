@@ -10,6 +10,10 @@ import Foundation
 print("Hello, World!")
 // generalTest()
 
+//var PracticeScratch = ExampleClass()
+//print(PracticeScratch.exampleVariable)
+//PracticeScratch.exampleVariable = "String"
+//print(PracticeScratch.exampleVariable)
+
 var sample_model = ModelTrainingWalkthrough()
 sample_model.trainModel()
-print(sample_model.trainingDataset)
