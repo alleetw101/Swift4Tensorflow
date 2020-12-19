@@ -66,7 +66,7 @@ class ModelTrainingWalkthrough {
         return loadIrisDatasetFromCSV(contentsOf: trainDataFilename, hasHeader: true, featureColumns: [0, 1, 2, 3], labelColumns: [4])
     }
     
-    func trainModel(batchsize: Int = 32, epochCount: Int = 500) {
+    func trainModel(batchsize: Int = 32, epochCount: Int = 501) {
         let trainingEpochs = TrainingEpochs(samples: trainingDataset, batchSize: batchsize)
         let columnNames = featureNames + [labelName]
         
@@ -79,11 +79,35 @@ class ModelTrainingWalkthrough {
             return Tensor<Float>(predictions .== truths).mean().scalarized()
         }
         
-        
-        
+        for (epochIndex, epoch) in trainingEpochs.prefix(epochCount).enumerated() {
+            var epochLoss: Float = 0
+            var epochAccuracy: Float = 0
+            var batchCount: Int = 0
+            
+            for batchSamples in epoch {
+                let batch = batchSamples.collated
+                let (loss, grad) = valueWithGradient(at: model) { (model: IrisModel) -> Tensor<Float> in
+                    let logits = model(batch.features)
+                    return softmaxCrossEntropy(logits: logits, labels: batch.labels)
+                }
+                optimizer.update(&model, along: grad)
+                
+                let logits = model(batch.features)
+                epochAccuracy += accuracy(predictions: logits.argmax(squeezingAxis: 1), truths: batch.labels)
+                epochLoss += loss.scalarized()
+                batchCount += 1
+            }
+            epochAccuracy /= Float(batchCount)
+            epochLoss /= Float(batchCount)
+            trainAccuracyResults.append(epochAccuracy)
+            trainLossResults.append(epochLoss)
+            if epochIndex % 50 == 0 {
+                print("Epoch \(epochIndex): Loss: \(epochLoss), Accuracy: \(epochAccuracy)")
+            }
+        }
     }
         
-    func visualizeProcesses() {
+    func visualizePreProcesses() {
         // Examine csv
         let f = Python.open(trainDataFilename)
         for _ in 0..<5 {
@@ -106,6 +130,22 @@ class ModelTrainingWalkthrough {
         plt.scatter(petalLengths, sepalLengths, c: firstTrainLabels.array.scalars)
         plt.xlabel("Petal length")
         plt.ylabel("Sepal length")
+        plt.show()
+    }
+    
+    func visualizeTraining() {
+        let plt = Python.import("matplotlib.pyplot")
+        plt.figure(figsize: [12, 8])
+
+        let accuracyAxes = plt.subplot(2, 1, 1)
+        accuracyAxes.set_ylabel("Accuracy")
+        accuracyAxes.plot(trainAccuracyResults)
+
+        let lossAxes = plt.subplot(2, 1, 2)
+        lossAxes.set_ylabel("Loss")
+        lossAxes.set_xlabel("Epoch")
+        lossAxes.plot(trainLossResults)
+
         plt.show()
     }
 }

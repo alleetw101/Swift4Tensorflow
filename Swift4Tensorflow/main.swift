@@ -17,3 +17,4 @@ print("Hello, World!")
 
 var sample_model = ModelTrainingWalkthrough()
 sample_model.trainModel()
+sample_model.visualizeTraining()
